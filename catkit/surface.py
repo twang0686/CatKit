@@ -2,9 +2,6 @@ from . import utils
 from . import adsorption
 import numpy as np
 from numpy.linalg import norm, solve
-from ase.neighborlist import NeighborList
-import networkx as nx
-import networkx.algorithms.isomorphism as iso
 from ase.build import rotate
 from ase.constraints import FixAtoms
 try:
@@ -22,6 +19,7 @@ class SlabGenerator(object):
             bulk,
             miller_index=[1, 1, 1],
             layers=4,
+            min_width=None,
             fixed=2,
             vacuum=0,
             tol=1e-8
@@ -35,6 +33,8 @@ class SlabGenerator(object):
             Miller index to construct surface from.
           layers: int
             Number of layers to include in the slab.
+          min_width: float
+            Minimum width of slabs produce (Ang). Will override layers.
           fixed: int
             Number of layers to fix in the slab.
           vacuum: float
@@ -47,6 +47,7 @@ class SlabGenerator(object):
         self.miller_index = np.array(miller_index)
         self.layers = layers
         self.fixed = fixed
+        self.min_width = min_width
         self.vacuum = vacuum
         self.tol = tol
 
@@ -166,52 +167,9 @@ class SlabGenerator(object):
         if len(unique_shift) == 1:
             return unique_shift
 
-        # Now search symmetrically unique planes
-        # For nearest-neighbor uniqueness
-        unique_terminations, graphs = [], []
-        for i, z_shift in enumerate(unique_shift):
-            tmp_slab = self._basis.copy()
-            tmp_slab.translate([0, 0, -z_shift])
-            tmp_slab.wrap(pbc=[1, 1, 1])
+        self.unique_terminations = unique_shift
 
-            zpos = tmp_slab.get_scaled_positions()[:, 2]
-            index = np.arange(len(tmp_slab))
-            del tmp_slab[index[zpos < 0.5]]
-
-            nl = NeighborList(
-                [2] * len(tmp_slab),
-                skin=0.0,
-                bothways=True,
-                self_interaction=False)
-            nl.build(tmp_slab)
-
-            G = nx.MultiGraph()
-            symbols = tmp_slab.get_chemical_symbols()
-            for node, neighbors in enumerate(nl.neighbors):
-                G.add_node(node, symbols=symbols[node])
-                d = tmp_slab.get_distances(node, neighbors, mic=True)
-                edges = [[node, _, {'distance': d[i]}] for i, _ in
-                         enumerate(nl.get_neighbors(node)[0])]
-                G.add_edges_from(edges)
-
-            isomorph = False
-            for G0 in graphs:
-                nm = iso.categorical_node_match('symbols', 'X')
-                em = iso.numerical_multiedge_match('distance', 1)
-                if nx.is_isomorphic(
-                        G, G0,
-                        edge_match=em,
-                        node_match=nm):
-                    isomorph = True
-                    break
-
-            if not isomorph:
-                graphs += [G]
-                unique_terminations += [z_shift]
-
-        self.unique_terminations = unique_terminations
-
-        return unique_terminations
+        return unique_shift
 
     def get_slab(self, iterm=None, primitive=False):
         """ Generate a slab object with a certain number of layers.
@@ -246,7 +204,13 @@ class SlabGenerator(object):
             direct=False,
             tol=self.tol
         )
-        z_repetitions = np.ceil(self.layers / len(zlayers))
+
+        if self.min_width:
+            width = slab.cell[2][2]
+            z_repetitions = np.ceil(width / len(zlayers) * self.min_width)
+        else:
+            z_repetitions = np.ceil(self.layers / len(zlayers))
+
         slab *= (1, 1, int(z_repetitions))
 
         # Orthogonalize the z-coordinate
@@ -294,7 +258,14 @@ class SlabGenerator(object):
             tag=True,
             tol=self.tol
         )
-        ncut = sorted(zlayers)[::-1][:self.layers][-1]
+
+        reverse_sort = np.sort(zlayers)[::-1]
+
+        if self.min_width:
+            n = np.where(zlayers < self.min_width, 1, 0).sum()
+            ncut = reverse_sort[n]
+        else:
+            ncut = reverse_sort[:self.layers][-1]
 
         zpos = slab.positions[:, 2]
         index = np.arange(len(slab))
@@ -344,8 +315,17 @@ class SlabGenerator(object):
 
         surf_atoms = np.nonzero(ind0 - ind[:len(ind0)])[0]
 
+        bulk_atoms = set(np.arange(len(slab))) - set(surf_atoms)
+
+        if len(bulk_atoms) == 0:
+            raise ValueError(
+                ("Your slab has no bulk atoms and is likely too thin "
+                 "to identify surface atoms correctly.")
+            )
+
         hwp = slab.positions[surf_atoms] - slab.get_center_of_mass()
         top = surf_atoms[hwp.T[2] > 0]
+
         bottom = surf_atoms[hwp.T[2] < 0]
 
         self.surface_atoms = top
@@ -369,6 +349,7 @@ class SlabGenerator(object):
 
         if slab != self.slab or self.surface_atoms is None:
             surface_sites = self.get_surface_atoms(slab)[0]
+            self.slab = slab
         else:
             surface_sites = self.surface_atoms
 
