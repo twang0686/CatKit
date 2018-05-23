@@ -28,22 +28,18 @@ before_install:
 
 install:
   - sudo apt-get update
-  - hash -r
-  - conda config --set always_yes yes --set changeps1 no
-  - conda update -q conda
-  # Useful for debugging any issues with conda
   - conda info -a
 
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION
+  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION -y
   - source activate test-environment
 
   - pip install -r requirements.txt
-  - conda install --channel rdkit rdkit
+  - conda install --channel rdkit rdkit -y
 
 
 script:
-  - nosetests tests/* --with-coverage --cover-inclusive --cover-package=. --cover-erase
-  - coverage report --omit 'images/*,tests/*' --show-missing
+  - nosetests ./catkit --with-coverage --cover-inclusive --cover-package=. --cover-erase
+  - coverage report --omit 'docs/*,./*/tests/*,./tests/*,data/*' --show-missing
 
 after_success:
   - coveralls

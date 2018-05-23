@@ -1,413 +1,93 @@
 #+Title: CatKit: Catalysis Kit
-#+Author:Jacob Boes
+#+Author: SUNCAT Method Development Team
 #+OPTIONS: toc:nil
+#+LATEX_HEADER: \setlength{\parindent}{0em}
 
 #+BEGIN_HTML
 <a href='https://travis-ci.org/SUNCAT-Center/CatKit.svg?branch=master'><img src='https://travis-ci.org/SUNCAT-Center/CatKit.svg?branch=master'/></a>
 <a href='https://coveralls.io/github/SUNCAT-Center/CatKit?branch=master'><img src='https://coveralls.io/repos/github/SUNCAT-Center/CatKit/badge.svg?branch=master' alt='Coverage Status' /></a>
+<a href='http://catkit.readthedocs.io/en/latest/?badge=latest'><img src='https://readthedocs.org/projects/catkit/badge/?version=latest' alt='Documentation Status' /></a>
 #+END_HTML
 
-Welcome to CatKit! A staging ground for computational tools which are generally useful for catalysis.
+Welcome to CatKit! A staging ground for computational tools which are generally useful for catalysis research. The goal of the project is to provide a communal location for those interested in hosting such tools under a common banner. In doing so, we hope to provide the infrastructure to produce more advanced functionality based on modular components of individual contributors.
 
-Currently, the primary function of CatKit is for controlled atomic structure enumeration. This is performed through symmetries which exist in these chemical systems. These symmetries take the form of translations and rotations in bulk structures where well defined lattices exist. For gas-phase, symmetries are defined by bond-formation rules.
+You can find our [[http://catkit.readthedocs.io/en/latest/?badge=latest][full documentation here]].
 
-By conserving bond-formation order and pairing it with bulk symmetry enumerations, a comprehensive mapping tools of all possible relevant chemical pathways can be produced. This information can then be aggregated and used to gain insights into catalytic systems in ways beyond their original intention.
+* Installation
+** Pip installation
+CatKit is most easily installed with pip using:
 
-Currently included enumerations include:
+#+BEGIN_SRC sh
+pip install catkit
+#+END_SRC
 
-- [X] Surfaces structure
+For Mac OSX, homebrew can be used in place of pip
+
+#+BEGIN_SRC sh
+brew install catkit
+#+END_SRC
+
+For usage on high-performance computers, installation will need to be performed locally which can be done using:
+
+#+BEGIN_SRC sh
+pip install --user catkit
+#+END_SRC
+
+These commands will install all of the necessary dependencies for you. 
+
+** Source installation
+Alternatively, a version with the most recent commits can be install through git by running the following in your home directory.
+
+#+BEGIN_SRC sh
+git clone https://github.com/SUNCAT-Center/CatKit.git catkit
+#+END_SRC
+
+Then, add =~/catkit= to your =PYTHONPATH= by adding the following line to your =~/.bashrc= file.
+
+#+BEGIN_SRC sh
+export PYTHONPATH=~/catkit:$PYTHONPATH
+#+END_SRC
+
+Or, one can use pip to install from the master branch directly:
+
+#+BEGIN_SRC sh
+pip install --upgrade git+https://github.com/SUNCAT-Center/CatKit.git catkit
+#+END_SRC
+
+* CatGen: Catalysis Generator
+CatGen is an enumeration module designed to construct various catalytic structures.
+
+- [X] Gas phase molecules
+- [ ] Bulk structures
+- [X] Surfaces structures
 - [X] Adsorption sites
-- [ ] Catalytic structures
-- [X] Gas-phase molecules
-- [X] Reaction pathways
+- [X] Catalytic structures
 
-* Enumeration
-** Surfaces:
-- [X] Surfaces produced from all user defined bulk lattices
-- [X] All Miller index
-- [X] Unique terminations of possible surfaces
-- [X] Surface sites
+It also has functionality for enumeration of other systems relevant to the field of catalysis.
 
-*** Example slab enumeration:
-Example surface generation for the 2 terminations of a fcc(2, 1, 1) surface construction of an L1_{0} CuPd_{3} cubic alloy.
+- [X] Reaction mechanisms
+- [X] Reaction routes
 
-#+CAPTION: First termination of 9 layer slab of CuPd_{3}.
-[[./images/CuPd3-term-0.png]] [[./images/CuPd3-term-0-top.png]]
+For additional details regarding how the generator operates, including example usage, see the [[./docs/catkit/gen/gen.org][CatGen documentatio
+* CatFlow: Catalysis Workflow
+CatFlow is currently a staging ground for Workflow code and techniques. These functions are meant to be used in conjunction with the other modules inside CatKit to help automate these tasks.
 
-#+CAPTION: Second termination of 9 layer slab of CuPd_{3}.
-[[./images/CuPd3-term-1.png]] [[./images/CuPd3-term-1-top.png]]
+Currently, CatFlow's functionality utilizes [[https://materialsproject.github.io/fireworks/][Fireworks]] and many of the functions are also specifically tailored to work on the high-performance computers which are available to the [[http://suncat.stanford.edu/][SUNCAT]] group as Stanford.
 
-#+BEGIN_SRC python :results silent :exports code
-from catkit.surface import SlabGenerator
-from ase.io import write
-from ase.build import bulk
+For additional detail see the [[./docs/catkit/flow/flow.org][CatFlow documentation]].
 
-atoms = bulk('Pd', 'fcc', a=4, cubic=True)
-atoms[3].symbol = 'Cu'
+* CatHub: Catalysis-Hub.org
+CatHub provides an interface to the reaction energy database on [[http://www.catalysis-hub.org][Catalysis-Hub.org]].
 
-gen = SlabGenerator(
-    atoms,
-    miller_index=[2, 1, 1],
-    layers=9,
-    fixed=5,
-    vacuum=10,
-)
+The module includes a command line interface that can be used to access and upload to the database:
 
-terminations = gen.get_unique_terminations()
+Run `cathub`:
 
-images = []
-for i, t in enumerate(terminations):
-    slab = gen.get_slab(iterm=i)
-    images += [slab]
+    cathub --help
 
-    # Create side and top-down visuals
-    img_name = './images/CuPd3-term-{}.pov'.format(i)
-    write(
-        img_name,
-        slab,
-        show_unit_cell=2,
-        rotation='-90x',
-    )
-
-    write(
-        img_name.replace('.pov', '-top.pov'),
-        slab,
-        show_unit_cell=2,
-    )
-#+END_SRC
-
-*** Example site enumeration:
-With a generated slab, we can also produce the unique adsorption sites which would be preasent on any given surface.
-
-#+CAPTION: Symmetry unique sites of CuPd_{3} (111). C (grey) denote 3-fold hollows, H (white) are bridge, and X (red) are top sites.
-[[./images/CuPd3_111-sites.png]]
-
-#+BEGIN_SRC python :results silent
-from catkit.surface import SlabGenerator
-from catkit.adsorption import get_adsorption_sites
-from ase.build import bulk
-from ase.io import write
-from ase import Atom
-
-# Make a test slab
-bulk = bulk('Pd', 'fcc', a=5, cubic=True)
-bulk[3].symbol = 'Cu'
-
-gen = SlabGenerator(
-    bulk,
-    miller_index=(1, 1, 1),
-    layers=3,
-    fixed=2,
-    vacuum=10,
-)
-
-atoms = gen.get_slab(
-    # Reduce the slab to a primitive form.
-    primitive=True,
-)
-
-sites = gen.adsorption_sites(
-    atoms,
-    symmetry_reduced=True,
-)
-
-atm = {'top': 'X', 'hollow': 'C', '4fold': 'N', 'bridge': 'H'}
-for k, v in sites.items():
-    positions, points, _ = v
-
-    for s in positions:
-        atoms += Atom(atm[k], s + [0, 0, 2])
-
-write(
-    './images/CuPd3_111-sites.pov',
-    atoms,
-    show_unit_cell=2,
-)
-#+END_SRC
-
-We can similarly produce produce all sites of higher index planes. This is potentially useful for adsorption interaction studies. Good adsorption placement for higher miller index surfaces will be implemented in a future release.
-
-#+CAPTION: All possible adsorption sites of of CuPd_{3} (321). Site identifications are the same as above with the addition of N (blue) which shows 4-fold hollow sites.
-[[./images/CuPd3_321-sites.png]]
-
-#+BEGIN_SRC python :results silent
-from catkit.surface import SlabGenerator
-from ase.build import bulk
-from ase.io import write
-from ase import Atom
-
-# Make a test slab
-bulk = bulk('Pd', 'fcc', a=5, cubic=True)
-bulk[3].symbol = 'Cu'
-
-gen = SlabGenerator(
-    bulk,
-    miller_index=[3, 2, 1],
-    layers=14,
-    fixed=6,
-    vacuum=10,
-)
-
-atoms = gen.get_slab(
-    # Reduce the slab to a primitive form.
-    primitive=True,
-)
-
-sites = gen.adsorption_sites(
-    atoms,
-    symmetry_reduced=False,
-)
-
-atm = {'top': 'X', 'hollow': 'C', '4fold': 'N', 'bridge': 'H'}
-for k, v in sites.items():
-    positions, points, _ = v
-
-    for s in positions:
-        atoms += Atom(atm[k], s + [0, 0, 1.5])
-
-write(
-    './images/CuPd3_321-sites.pov',
-    atoms,
-    show_unit_cell=2,
-)
-#+END_SRC
-
-**** Automated adsorption vectors
-The most commonly studied surfaces, such as (1, 1, 1), are perpendicular to the miller index at all adsorption sites. This means the most favorable angle of adsorption will always be perpendicular to the surface. For higher miller indices, this is no longer the case.
-
-#+CAPTION: Illustration of adsorption vectors (red dots) on a CuPd_{3} (2, 1, 1) surface.
-[[./images/adsorption-vectors.png]]
-
-This is the first step to further reducing symmetrically equivalent sites in 3D space for more complex structures. It can also provide the used with better initial guesses for adsorption locations.
-
-#+BEGIN_SRC python :results output org drawer :exports code
-from catkit.surface import SlabGenerator
-from ase.build import bulk
-from ase import Atom
-from ase.io import write
-import numpy as np
-
-# Make a test slab
-bulk = bulk('Pd', 'fcc', a=5, cubic=True)
-bulk[3].symbol = 'Cu'
-
-gen = SlabGenerator(
-    bulk,
-    miller_index=(2, 1, 1),
-    layers=10,
-    fixed=2,
-    vacuum=10,
-)
-
-slab = gen.get_slab(primitive=True)
-sites = gen.adsorption_sites(
-    slab,
-    vectors=True
-)
-
-for k, v in sites.items():
-    coords, points, avec = v
-
-    # Generae a visual of the vectors.
-    for i, origin in enumerate(coords):
-        for d in np.arange(0, 2, 0.25):
-            slab += Atom('X', origin + avec[i] * d)
-
-slab.wrap()
-write(
-    './images/adsorption-vectors.pov',
-    slab * (2, 2, 1),
-    show_unit_cell=2,
-    rotation='-60x',
-)
-#+END_SRC
-
-** Gas-phase:
-- [X] Various chemical species (C, H, and O currently tested)
-- [X] Molecules with single bonds
-- [X] Molecules with double bonds
-- [X] Molecules with triple bonds
-- [X] Molecules with single cyclical groups
-- [X] Molecules with double cyclical groups
-- [X] Molecules with triple cyclical groups
-- [X] UFF 3D structure predictions
-
-*** Example usage:
-Below is an example script which generates some simple figures using [[https://networkx.github.io/documentation/networkx-1.10/index.html][NetworkX]] code for all molecules up to C_{2}H_{6}.
-
-1 [[./images/molecule-1.png]]
-2 [[./images/molecule-2.png]]
-3 [[./images/molecule-3.png]]
-4 [[./images/molecule-4.png]]
-5 [[./images/molecule-5.png]]
-6 [[./images/molecule-6.png]]
-7 [[./images/molecule-7.png]]
-8 [[./images/molecule-8.png]]
-9 [[./images/molecule-9.png]]
-10 [[./images/molecule-10.png]]
-11 [[./images/molecule-11.png]]
-12 [[./images/molecule-12.png]]
-13 [[./images/molecule-13.png]]
-14 [[./images/molecule-14.png]]
-15 [[./images/molecule-15.png]]
-16 [[./images/molecule-16.png]]
-17 [[./images/molecule-17.png]]
-
-#+BEGIN_SRC python :results output org drawer :exports both
-from catkit.pathways import ReactionNetwork
-import time
-
-start = time.time()
-
-db_name = 'C2H6-example.db'
-with ReactionNetwork(db_name=db_name) as rn:
-
-    # Run a molecule search
-    rn.molecule_search(
-        element_pool={'C': 2, 'H': 6},
-        multiple_bond_search=True
-    )
-
-    # Load the molecules
-    molecules = rn.load_molecules()
-
-    # Get 3D structure estimates (requires RDKit)
-    try:
-        from catkit.api.rd_kit import plot_molecule, get_uff_coordinates
-
-        for i, molecule in molecules.items():
-            plot_molecule(
-                molecule,
-                file_name='./images/molecule-{}.png'.format(i)
-            )
-
-            molecule = get_uff_coordinates(molecule, steps=50)
-            rn.save_3d_structure(molecule)
-
-        images = rn.load_3d_structures()
-    except(ImportError):
-       pass
-
-print('Process completed in {:.1f}s'.format(time.time() - start))
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-Process completed in 22.6s
-:END:
-
-** Reaction pathways:
-- [X] Addition and Reduction reactions (R1 + R2 <--> P1)
-- [X] Bond formation / breaking pathways (R1 <--> P1)
-- [X] Reconfiguration reactions (R1 <--> R1*)
-- [X] Substitution reactions (R1 + R2 <--> P1 + P2)
-
-*** Example network:
-Enumeration of possible elementary reaction steps for gas-phase C_{2}H_{6} species.
-
-#+CAPTION: Reaction network for C2H6 gas phase molecules. Numbers are indexes from the gas-phase example figures.
-[[./images/reaction-network.png]]
-
-Pathway exploration is currently integrated with gas-phase molecule search. See the gas-phase molecule search example for further details on molecule generations. Below, a reaction network is generated.
-
-#+BEGIN_SRC python :results output org drawer :exports both
-from catkit.pathways import ReactionNetwork
-import time
-
-start = time.time()
-
-# Load existing database
-db_name = 'C2H6-example.db'
-
-with ReactionNetwork(db_name=db_name) as rn:
-
-    # Substitution pathway search is expensive!
-    rn.path_search(
-        reconfiguration=True,
-        substitution=True
-    )
-
-    rn.plot_reaction_network(file_name='./images/reaction-network.png')
-
-print('Process completed in {:.1f}s'.format(time.time() - start))
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-Process completed in 2.4s
-:END:
-
-*** Example network access
-Once the reaction network has been produce, we can illustrate the potential pathways using the following code.
-
-#+BEGIN_SRC python :results output org drawer :exports both
-from catkit.pathways import ReactionNetwork
-import numpy as np
-import networkx as nx
-from ase.utils import formula_hill
-
-with ReactionNetwork(db_name='C2H6-example.db') as rn:
- 
-    molecules = rn.load_molecules()
-    pathways = rn.load_pathways()
-
-    names = np.empty(len(molecules) + 1, dtype='a5')
-    names[0] = ''
-    for k, v in molecules.items():
-        atn = nx.get_node_attributes(v, 'number')
-
-        # These are not always unique identifiers
-        hill = formula_hill(list(atn.values()))
-        names[k] = hill
-
-    for path in pathways:
-        print('|{} + {} --> {} + {}|'.format(*names[path]))
-#+END_SRC
-
-#+RESULTS:
-:RESULTS:
-| b'C' + b'C' --> b'' + b'C2'       |
-| b'C' + b'H' --> b'' + b'CH'       |
-| b'C' + b'CH' --> b'' + b'C2H'     |
-| b'C' + b'CH2' --> b'' + b'C2H2'   |
-| b'C' + b'CH3' --> b'' + b'C2H3'   |
-| b'H' + b'H' --> b'' + b'H2'       |
-| b'H' + b'C2' --> b'' + b'C2H'     |
-| b'H' + b'CH' --> b'' + b'CH2'     |
-| b'H' + b'C2H' --> b'' + b'C2H2'   |
-| b'H' + b'C2H' --> b'' + b'C2H2'   |
-| b'H' + b'CH2' --> b'' + b'CH3'    |
-| b'H' + b'C2H2' --> b'' + b'C2H3'  |
-| b'H' + b'C2H2' --> b'' + b'C2H3'  |
-| b'H' + b'C2H2' --> b'' + b'C2H3'  |
-| b'H' + b'CH3' --> b'' + b'CH4'    |
-| b'H' + b'C2H3' --> b'' + b'C2H4'  |
-| b'H' + b'C2H3' --> b'' + b'C2H4'  |
-| b'H' + b'C2H3' --> b'' + b'C2H4'  |
-| b'H' + b'C2H4' --> b'' + b'C2H5'  |
-| b'H' + b'C2H4' --> b'' + b'C2H5'  |
-| b'H' + b'C2H5' --> b'' + b'C2H6'  |
-| b'CH' + b'CH' --> b'' + b'C2H2'   |
-| b'CH' + b'CH2' --> b'' + b'C2H3'  |
-| b'CH' + b'CH3' --> b'' + b'C2H4'  |
-| b'CH2' + b'CH2' --> b'' + b'C2H4' |
-| b'CH2' + b'CH3' --> b'' + b'C2H5' |
-| b'CH3' + b'CH3' --> b'' + b'C2H6' |
-:END:
+See the [[./docs/catkit/hub/hub.org][CatHub documentation]] for details on how to use the cli.
 
 * Dependencies
 CatKit attempts to make use of basic functionalities implemented by existing softwares when possible to extend its capabilities.
 
-- [[https://wiki.fysik.dtu.dk/ase/][Atomic Simulation Environment]]
-Atomic Simulation Environment (ASE) is a convenient platform with many good conventions for atoms objects, which CatKit relies heavily upon.
-
-- [[https://atztogo.github.io/spglib/index.html][Spglib]]
-A Bulk symmetry library with functionality for identifying rotational and translation symmetries in bulk lattice structures.
-
-- [[http://www.rdkit.org/][RDKit]]
-RDKit is a well developed gas-phase molecule enumeration software for SMILES representation of gas-phase molecules and simple UFF integration.
-
-- [[https://networkx.github.io/documentation/networkx-1.10/index.html][NetworkX]]
-Code for Graph theory implementation used to identify redundant structures.
-
-A full list of required packaged can be found in [[./requirements.txt]].
+A full list of required packaged can be found in [[./requirements.txt][the requirements]].

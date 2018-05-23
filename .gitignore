@@ -5,3 +5,5 @@
 .#*
 *.pyc
 *.db
+.pypirc
+.style.yapf
